@@ -16,6 +16,18 @@ function processCommand(command) {
         case 'exit':
             process.exit(0);
             break;
+        case 'show':
+            const todos = [];
+            files.forEach(file => {
+                const lines = file.split('\n');
+                lines.forEach(line => {
+                    if (line.trim().startsWith('// TODO ')) {
+                        todos.push(line.trim());
+                    }
+                });
+            });
+            console.log(todos);
+            break;
         default:
             console.log('wrong command');
             break;

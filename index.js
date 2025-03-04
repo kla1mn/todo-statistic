@@ -21,8 +21,9 @@ function processCommand(command) {
             files.forEach(file => {
                 const lines = file.split('\n');
                 lines.forEach(line => {
-                    if (line.trim().startsWith('// TODO ')) {
-                        todos.push(line.trim());
+                    let splited = line.split('// TODO ');
+                    if (splited.length > 1) {
+                        todos.push(splited.slice(1).join(''));
                     }
                 });
             });

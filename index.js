@@ -11,77 +11,133 @@ function getFiles() {
     return filePaths.map(path => readFile(path));
 }
 
+function countOccurrences(str, ch) {
+    let count = 0;
+    for (let i = 0; i < str.length; i++) {
+        if (str[i] === ch) count++;
+    }
+    return count;
+}
+
+function isAllDigits(str) {
+    for (let i = 0; i < str.length; i++) {
+        if (str[i] < '0' || str[i] > '9') return false;
+    }
+    return true;
+}
+
+function isValidDate(str) {
+    if (str.length !== 10) return false;
+    if (str[4] !== '-' || str[7] !== '-') return false;
+    const year = str.slice(0, 4);
+    const month = str.slice(5, 7);
+    const day = str.slice(8, 10);
+    return isAllDigits(year) && isAllDigits(month) && isAllDigits(day);
+}
+
 function extractTodos() {
     const todos = [];
     files.forEach(file => {
         const lines = file.split('\n');
         lines.forEach(line => {
-            const match = line.match(/\/\/ TODO (.*)/);
-            if (match) {
-                todos.push(match[1]);
+            const trimmed = line.trim();
+            const prefix = '/\/\ TODO ';
+            if (trimmed.indexOf(prefix) === 0) {
+                todos.push(trimmed.substring(prefix.length));
             }
         });
     });
     return todos;
 }
 
-function processCommand(command, isPrint = true) {
-    const todos = extractTodos();
-    const args = command.split(' ');
+function showTodos(todos) {
+    todos.forEach(todo => console.log(todo));
+}
 
+function sortTodos(todos, criterion) {
+    if (criterion === 'importance') {
+        return todos.slice().sort((a, b) => countOccurrences(b, '!') - countOccurrences(a, '!'));
+    } else if (criterion === 'user') {
+        const tasksWithUser = [];
+        const tasksWithoutUser = [];
+        todos.forEach(todo => {
+            const parts = todo.split(';');
+            if (parts.length > 1 && parts[0].trim() !== '') {
+                tasksWithUser.push({user: parts[0].trim(), todo});
+            } else {
+                tasksWithoutUser.push(todo);
+            }
+        });
+        tasksWithUser.sort((a, b) => a.user.toLowerCase().localeCompare(b.user.toLowerCase()));
+        const grouped = [];
+        let currentUser = null;
+        tasksWithUser.forEach(item => {
+            if (item.user !== currentUser) {
+                grouped.push(item.user + ':');
+                currentUser = item.user;
+            }
+            grouped.push('  ' + item.todo);
+        });
+        if (tasksWithoutUser.length > 0) {
+            grouped.push('No user:');
+            tasksWithoutUser.forEach(todo => grouped.push('  ' + todo));
+        }
+        return grouped;
+    } else if (criterion === 'date') {
+        const tasksWithDate = [];
+        const tasksWithoutDate = [];
+        todos.forEach(todo => {
+            const parts = todo.split(';');
+            if (parts.length >= 2) {
+                const dateStr = parts[1].trim();
+                if (isValidDate(dateStr)) {
+                    tasksWithDate.push({todo, date: new Date(dateStr)});
+                    return;
+                }
+            }
+            tasksWithoutDate.push(todo);
+        });
+        tasksWithDate.sort((a, b) => b.date - a.date);
+        return tasksWithDate.map(item => item.todo).concat(tasksWithoutDate);
+    }
+    return todos;
+}
+
+function processCommand(command) {
+    const args = command.split(' ');
     switch (args[0]) {
         case 'exit':
             process.exit(0);
             break;
         case 'show':
-            if (isPrint) console.log(todos);
-            return todos;
+            console.log(todos);
+            break;
         case 'important':
-            let important = todos.filter(todo => todo.includes('!'));
-            if (isPrint) console.log(important);
-            return important;
+            console.log(todos.filter(todo => todo.includes('!')));
+            break;
         case 'user':
-            const groups = {};
-            const withoutUser = [];
-            todos.forEach(todo => {
-                const parts = todo.split(';');
-                if (parts.length > 1) {
-                    const user = parts[0].trim();
-                    if (user) {
-                        if (!groups[user]) groups[user] = [];
-                        groups[user].push(todo);
-                    } else {
-                        withoutUser.push(todo);
-                    }
-                } else {
-                    withoutUser.push(todo);
-                }
-            });
-            const users = Object.keys(groups);
-            users.forEach(user => {
-                console.log(user + ':');
-                groups[user].forEach(item => console.log('  ' + item));
-            });
-            if (withoutUser.length) {
-                console.log('No user:');
-                withoutUser.forEach(item => console.log('  ' + item));
+            if (args.length < 2) {
+                console.log('Please provide a username');
+                break;
             }
-            return users || [];
-        case 'sort':
+            const username = args[1].toLowerCase();
+            console.log(todos.filter(todo => {
+                const match = todo.match(/^([^;]+);/);
+                return match && match[1].toLowerCase() === username;
+            }));
+            break;
+        case 'sort': {
             if (args.length < 2) {
                 console.log('Please provide a sort argument: importance, user, or date');
                 break;
             }
-
-            const criterion = args.slice(1).join('');
-            let arr = processCommand(criterion, false).sort((a, b) =>
-            a.toLowerCase().localeCompare(b.toLowerCase()));
-            if (isPrint) console.log(arr);
-            return arr;
+            const todosForSort = extractTodos();
+            const sortedTodos = sortTodos(todosForSort, args[1]);
+            showTodos(sortedTodos);
+            break;
+        }
         default:
             console.log('wrong command');
             break;
     }
 }
-
-// TODO you can do it!
